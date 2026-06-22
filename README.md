@@ -4,7 +4,7 @@ Static recompilation of **Pokémon Emerald** (Game Boy Advance) to native PC, bu
 on the [`gbarecomp`](https://github.com/mstan/gbarecomp) framework.
 
 Its Gen3 siblings live in
-[`FireRedRecomp`](https://github.com/mstan/FireRedRecomp) (FireRed + LeafGreen) and
+[`FireRedLeafGreenRecomp`](https://github.com/mstan/FireRedLeafGreenRecomp) (FireRed + LeafGreen) and
 [`RubySapphireRecomp`](https://github.com/mstan/RubySapphireRecomp) (Ruby + Sapphire).
 
 > ### Status — playable bring-up (v0.0.1), and self-improving
