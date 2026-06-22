@@ -1,0 +1,35 @@
+# game.toml — Pokémon Emerald Version (GBA), USA
+#
+# Paths resolve relative to THIS file's directory (variants/emerald/),
+# per runtime.cpp resolve_config_path.
+
+[game]
+name           = "Pokémon Emerald Version"
+short_name     = "emerald"
+default_region = "usa"
+
+[bios]
+path = "../../../gbarecomp/bios/gba_bios.bin"   # override via --bios
+sha1 = "300c20df6731a33952ded8c436f7f186d25d3492"
+
+[rom]
+path = "roms/emerald_usa.gba"   # user-provided; gitignored
+# sha1 filled in per region in config/<region>.toml (f3ae0881…).
+
+[recompiler]
+entry_point   = "0x08000000"
+seeds         = "symbols/imported_symbols.tsv"
+boundaries    = "symbols/function_boundaries.tsv"
+out_dir       = "generated"
+strict        = true
+
+[save]
+type = "flash1m"          # Emerald: 1 Mbit (128 KB) flash + RTC
+
+[runtime]
+debug_port    = 19892
+window_title  = "EmeraldRecomp"
+
+[functions]
+arm   = []
+thumb = []
