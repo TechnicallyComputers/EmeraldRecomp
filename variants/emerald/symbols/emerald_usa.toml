@@ -7,6 +7,7 @@ id = "emerald_usa"
 load_address = 0x08000000
 size = 0x01000000
 entry_pc = 0x08000000
+codegen_shards = 64
 
 [identity]
 sha1 = "f3ae088181bf583e55daf962a92bb46f4f1d07b7"
@@ -79803,4 +79804,3 @@ name = "strcmp"
 addr = 0x082E94E4
 mode = "thumb"
 name = "strcpy"
-
