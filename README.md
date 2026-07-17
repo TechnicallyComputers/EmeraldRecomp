@@ -24,6 +24,16 @@ Its Gen3 siblings live in
 
 ---
 
+## Screenshots
+
+| Pokémon Emerald — title screen | Pokémon Emerald — a wild encounter |
+|---|---|
+| ![Pokémon Emerald — title screen, native recompiled build](docs/screenshots/emerald-title.png) | ![Pokémon Emerald — a wild encounter, running natively](docs/screenshots/emerald-gameplay.png) |
+
+*Native recompiled builds (no emulator), captured running the original ROM.*
+
+---
+
 ## What "static recompilation" means here
 
 The ROM's **ARM7TDMI machine code is statically translated to native C** — every
