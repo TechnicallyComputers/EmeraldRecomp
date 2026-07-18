@@ -36,6 +36,11 @@ add_executable(verify_rom_hash tools/verify_rom_hash/main.cpp)
 #                  <crc32>)
 function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32)
     set(VARIANT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/variants/${NAME}")
+    if(EXISTS "${VARIANT_DIR}/generated/recompiled.cpp")
+        message(FATAL_ERROR
+            "${NAME}: stale monolithic generated/recompiled.cpp found. "
+            "Regenerate with the current gba_recompile before building.")
+    endif()
     file(GLOB VARIANT_GENERATED CONFIGURE_DEPENDS
         "${VARIANT_DIR}/generated/*.c"
         "${VARIANT_DIR}/generated/*.cpp")
@@ -43,11 +48,10 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
     add_executable(${TARGET} src/main.cpp ${VARIANT_GENERATED})
 
     # Keep generated guest translation units at a bounded optimization and
-    # debug-info cost. gba_recompile emits stable recompiled_NNN.cpp shards;
-    # retain support for the legacy monolithic recompiled.cpp as well.
+    # debug-info cost. gba_recompile emits stable recompiled_NNN.cpp shards.
     set(VARIANT_RECOMPILED_SOURCES ${VARIANT_GENERATED})
     list(FILTER VARIANT_RECOMPILED_SOURCES INCLUDE REGEX
-        "/recompiled(_[0-9]+)?\\.cpp$")
+        "/recompiled_[0-9]+\\.cpp$")
     if(VARIANT_RECOMPILED_SOURCES)
         set_source_files_properties(${VARIANT_RECOMPILED_SOURCES} PROPERTIES
             COMPILE_OPTIONS "-O1;-g0")
