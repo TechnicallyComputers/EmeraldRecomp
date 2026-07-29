@@ -121,6 +121,7 @@ int main(int argc, char** argv) {
     // CRC32 of the pinned ROM (same dump the SHA-1 gates on); the
     // launcher's GAME card uses it for its "ROM verified" check.
     opts.builtin_rom_crc32 = GBARECOMP_BUILTIN_CRC32;
+    opts.mod_game_id       = "pokemon-emerald-us";
     opts.launcher_region   = (sizeof(GBARECOMP_BUILTIN_REGION) > 1)
                                  ? GBARECOMP_BUILTIN_REGION
                                  : nullptr;

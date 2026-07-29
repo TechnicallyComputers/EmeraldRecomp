@@ -23,6 +23,8 @@ set(RECOMP_UI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/recomp-ui"
     CACHE PATH "Path to the shared recomp-ui checkout")
 set(GBARECOMP_RUNTIME_UI_ROOT "${RECOMP_UI_ROOT}"
     CACHE PATH "recomp-ui root used by the live GBA runtime adapter")
+set(GBARECOMP_ENABLE_MODS ON CACHE BOOL
+    "Build Emerald's built-in mod catalog and trusted-plugin runtime" FORCE)
 
 if(NOT EXISTS "${GBARECOMP_ROOT}/CMakeLists.txt")
     message(FATAL_ERROR
@@ -49,7 +51,14 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
         "${VARIANT_DIR}/generated/*.c"
         "${VARIANT_DIR}/generated/*.cpp")
 
-    add_executable(${TARGET} src/main.cpp ${VARIANT_GENERATED})
+    set(VARIANT_GAME_SOURCES src/main.cpp)
+    if(GBARECOMP_ENABLE_MODS)
+        list(APPEND VARIANT_GAME_SOURCES
+            src/mods/emerald_absolute_rtc_plugin.cpp)
+    endif()
+    add_executable(${TARGET}
+        ${VARIANT_GAME_SOURCES}
+        ${VARIANT_GENERATED})
 
     # Keep generated guest translation units at a bounded optimization and
     # debug-info cost. gba_recompile emits stable recompiled_NNN.cpp shards.
@@ -128,6 +137,10 @@ if(GBAGAME_RECOMP_UI)
         "${GBARECOMP_ROOT}/src/gba"
         src
     )
+    if(GBARECOMP_ENABLE_MODS)
+        target_compile_definitions(game_launcher_ui PRIVATE
+            GBARECOMP_ENABLE_MODS=1)
+    endif()
     recomp_target_launcher_ui(game_launcher_ui CONSOLE gba)
     find_package(SDL2 REQUIRED)
     target_link_libraries(game_launcher_ui PUBLIC SDL2::SDL2)
@@ -140,3 +153,13 @@ endif()
 # Emerald — USA, sha1 f3ae0881…
 add_gba_variant(EmeraldRecomp emerald 19892 "EmeraldRecomp"
     "Pokemon Emerald (USA)" "f3ae088181bf583e55daf962a92bb46f4f1d07b7" 0x1F1C08FB)
+
+# Ship the game-owned, disabled-by-default mod catalog beside the executable.
+set(EMERALD_PRELOADED_MODS "${CMAKE_CURRENT_SOURCE_DIR}/mods/preloaded")
+if(EXISTS "${EMERALD_PRELOADED_MODS}/packages")
+    add_custom_command(TARGET EmeraldRecomp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${EMERALD_PRELOADED_MODS}"
+            "$<TARGET_FILE_DIR:EmeraldRecomp>/mods"
+        COMMENT "Preloading the Emerald mod catalog")
+endif()
