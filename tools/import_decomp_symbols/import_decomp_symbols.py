@@ -355,7 +355,13 @@ def main() -> int:
         fh.write("load_address = 0x08000000\n")
         fh.write(f"size = 0x{(rom_size or 0):08X}\n")
         fh.write("entry_pc = 0x08000000\n")
-        fh.write("codegen_shards = 64\n\n")
+        fh.write("codegen_shards = 64\n")
+        # Headless/TCP runners unwind at frame boundaries and can resume at
+        # any interrupted instruction, including inside the IWRAM IRQ and
+        # SoundMainRAM copies below. Keep every aligned instruction natively
+        # dispatchable so those paths never depend on interpreter/self-heal
+        # fallback or a hand-maintained resume-point list.
+        fh.write("static_resume_all = true\n\n")
         fh.write("[identity]\n")
         fh.write(f'sha1 = "{rom_sha1 or ""}"\n\n')
         # Runtime IWRAM code copies (auto-derived from decomp symbols; static
