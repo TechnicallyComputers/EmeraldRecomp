@@ -13,7 +13,7 @@
 #   assets/, variants/emerald/{game.toml,symbols,config,launcher}/
 #   gbarecomp/           — CLI + host + gba_recompile + sdk helpers
 #   recomp-ui/           — launcher UI sources (needed to rebuild)
-#   toolchain/           — optional; set EMERALD_TOOLCHAIN_DIR to embed
+#   toolchain/           — via gbarecomp/tools/stage_setup_sdk.sh
 
 set -euo pipefail
 
@@ -116,7 +116,6 @@ cp -a "${ROOT}/variants/emerald/config" "${STAGE}/variants/emerald/"
 if [[ -d "${ROOT}/variants/emerald/launcher" ]]; then
   cp -a "${ROOT}/variants/emerald/launcher" "${STAGE}/variants/emerald/"
 fi
-# Empty generated/ placeholder (wizard fills it).
 mkdir -p "${STAGE}/variants/emerald/generated"
 echo "generated/" >"${STAGE}/variants/emerald/generated/.gitkeep"
 
@@ -134,6 +133,7 @@ copy_tree_filtered() {
   fi
 }
 
+# Framework + UI (emitters / toolchain / DLLs finished by stage_setup_sdk.sh).
 copy_tree_filtered "${ROOT}/gbarecomp" "${STAGE}/gbarecomp" \
   --exclude '.git' \
   --exclude 'build' \
@@ -142,121 +142,48 @@ copy_tree_filtered "${ROOT}/gbarecomp" "${STAGE}/gbarecomp" \
   --exclude 'oracle' \
   --exclude 'tests'
 
-# Drop regenerated BIOS bodies if present; keep stub + toml.
-rm -f "${STAGE}/gbarecomp/src/runtime/generated_bios/bios_recompiled.cpp" \
-      "${STAGE}/gbarecomp/bios/gba_bios.bin" \
-      "${STAGE}/gbarecomp/bios/"*.bin 2>/dev/null || true
-
 copy_tree_filtered "${ROOT}/recomp-ui" "${STAGE}/recomp-ui" \
   --exclude '.git' \
   --exclude 'build' \
   --exclude '__pycache__'
-
-find_tool_bin() {
-  local name="$1"
-  local dir cand
-  for dir in "${SEARCH_ROOTS[@]}"; do
-    for cand in \
-      "${dir}/${name}" \
-      "${dir}/${name}.exe" \
-      "${dir}/Release/${name}.exe"
-    do
-      if [[ -f "${cand}" ]]; then
-        echo "${cand}"
-        return 0
-      fi
-    done
-  done
-  return 1
-}
-
-SEARCH_ROOTS=()
-if [[ -n "${RECOMPILER_BUILD}" ]]; then
-  SEARCH_ROOTS+=("$(cd "${RECOMPILER_BUILD}" && pwd)")
-fi
-SEARCH_ROOTS+=(
-  "${ROOT}/gbarecomp/build"
-  "${ROOT}/build-gba-tools"
-  "${ROOT}/build-ci/gbarecomp_build"
-)
-
-GBA_BIN="$(find_tool_bin gba_recompile || true)"
-if [[ -z "${GBA_BIN}" ]]; then
-  echo "error: gba_recompile not found (pass gba-recompile-build-dir)" >&2
-  exit 1
-fi
-mkdir -p "${STAGE}/gbarecomp/build"
-cp -a "${GBA_BIN}" "${STAGE}/gbarecomp/build/$(basename "${GBA_BIN}")"
-cp -a "${GBA_BIN}" "${STAGE}/gbarecomp/$(basename "${GBA_BIN}")"
-chmod +x "${STAGE}/gbarecomp/build/$(basename "${GBA_BIN}")" 2>/dev/null || true
-chmod +x "${STAGE}/gbarecomp/$(basename "${GBA_BIN}")" 2>/dev/null || true
-
-if [[ ! -f "${STAGE}/gbarecomp/gbarecomp_cli.py" ]]; then
-  echo "error: missing gbarecomp/gbarecomp_cli.py" >&2
-  exit 1
-fi
-
-cat >"${STAGE}/gbarecomp/retcomm-sdk.json" <<'EOF'
-{
-  "cli": "gbarecomp_cli.py",
-  "id": "gbarecomp-tools",
-  "game_bin": "gba_recompile"
-}
-EOF
-
-TOOLCHAIN_DIR="${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR:-}}"
-if [[ -n "${TOOLCHAIN_DIR}" && -d "${TOOLCHAIN_DIR}" ]]; then
-  if [[ ! -d "${TOOLCHAIN_DIR}/bin" ]]; then
-    echo "error: toolchain dir missing bin/: ${TOOLCHAIN_DIR}" >&2
-    exit 1
-  fi
-  mkdir -p "${STAGE}/toolchain"
-  if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete "${TOOLCHAIN_DIR}/" "${STAGE}/toolchain/"
-  else
-    cp -a "${TOOLCHAIN_DIR}/." "${STAGE}/toolchain/"
-  fi
-  echo "bundled toolchain from ${TOOLCHAIN_DIR}"
-else
-  echo "warning: EMERALD_TOOLCHAIN_DIR unset — zip will need system cmake/ninja" >&2
-fi
 
 # Never ship cart generated C or ROM dumps.
 rm -rf "${STAGE}/variants/emerald/generated/"*.cpp \
        "${STAGE}/variants/emerald/generated/"*.c \
        "${STAGE}/variants/emerald/roms" 2>/dev/null || true
 
-if [[ "${EXE_BASENAME}" == *.exe ]]; then
-  BUNDLE_DLLS=""
-  for cand in \
-      "${ROOT}/gbarecomp/tools/bundle_mingw_dlls.sh" \
-      "${ROOT}/scripts/bundle_mingw_dlls.sh"
-  do
-    if [[ -f "${cand}" ]]; then
-      BUNDLE_DLLS="${cand}"
-      break
-    fi
-  done
-  if [[ -z "${BUNDLE_DLLS}" ]]; then
-    echo "error: bundle_mingw_dlls.sh not found" >&2
-    exit 1
+STAGE_SDK=""
+for cand in \
+    "${ROOT}/gbarecomp/tools/stage_setup_sdk.sh" \
+    "${STAGE}/gbarecomp/tools/stage_setup_sdk.sh"
+do
+  if [[ -f "${cand}" ]]; then
+    STAGE_SDK="${cand}"
+    break
   fi
-  chmod +x "${BUNDLE_DLLS}" 2>/dev/null || true
-  GBA_EXE_NAME="$(basename "${GBA_BIN}")"
-  if [[ "${GBA_EXE_NAME}" != *.exe ]]; then
-    GBA_EXE_NAME="${GBA_EXE_NAME}.exe"
-  fi
-  bash "${BUNDLE_DLLS}" \
-    --runtime-bin "${RUNTIME_BIN_DIR}" \
-    --search-dir "${EXE_DIR}" \
-    --search-dir "${BUILD_DIR}" \
-    --exe "${STAGE}/${EXE_BASENAME}" --dest "${STAGE}" --label "${EXE_BASENAME}" \
-    --exe "${STAGE}/gbarecomp/build/${GBA_EXE_NAME}" \
-    --dest "${STAGE}/gbarecomp/build" \
-    --label "${GBA_EXE_NAME}" \
-    --require libgcc_s_seh-1.dll \
-    --require libstdc++-6.dll
+done
+if [[ -z "${STAGE_SDK}" ]]; then
+  echo "error: gbarecomp/tools/stage_setup_sdk.sh not found" >&2
+  exit 1
 fi
+chmod +x "${STAGE_SDK}" 2>/dev/null || true
+
+stage_args=(
+  --stage "${STAGE}"
+  --framework "${ROOT}/gbarecomp"
+  --search-dir "${EXE_DIR}"
+  --search-dir "${BUILD_DIR}"
+  --runtime-bin "${RUNTIME_BIN_DIR}"
+  --host-exe "${STAGE}/${EXE_BASENAME}"
+)
+if [[ -n "${RECOMPILER_BUILD}" ]]; then
+  stage_args+=(--recompiler-build "${RECOMPILER_BUILD}")
+fi
+if [[ -n "${GBARECOMP_TOOLCHAIN_DIR:-${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR:-}}}" ]]; then
+  stage_args+=(--toolchain-dir "${GBARECOMP_TOOLCHAIN_DIR:-${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR}}}")
+fi
+
+bash "${STAGE_SDK}" "${stage_args[@]}"
 
 cat >"${STAGE}/README-SETUP.txt" <<EOF
 Pokémon Emerald Recompiled ${VERSION} — setup package

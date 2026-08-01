@@ -1,4 +1,4 @@
-# Build Emerald setup-host packages for Linux and Windows.
+# Build Emerald setup-host packages for Linux, Windows, macOS (arm64 + Intel).
 # Ships a GUI generate & rebuild host + sources + gba_recompile —
 # not cart C, not BIOS dumps, not ROMs. First-run Generate emits
 # cart (+ optional BIOS) C locally, then rebuilds via portable toolchain/.
@@ -86,6 +86,14 @@ jobs:
           - os: windows-2022
             artifact: windows-x64
             shell: 'msys2 {0}'
+          - os: macos-15
+            artifact: macos-arm64
+            shell: bash
+            deployment_target: '11.0'
+          - os: macos-15-intel
+            artifact: macos-x64
+            shell: bash
+            deployment_target: '11.0'
 
     defaults:
       run:
@@ -149,16 +157,29 @@ jobs:
             libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev \
             libasound2-dev libpulse-dev libudev-dev zip
 
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ninja pkg-config sdl2 zip
+
       - name: Configure & build setup host + gba_recompile
+        env:
+          CMAKE_OSX_DEPLOYMENT_TARGET: ${{ matrix.deployment_target || '' }}
         run: |
           set -euo pipefail
           if [[ -d /mingw64/bin ]]; then
             export PATH="/mingw64/bin:${PATH}"
           fi
+          EXTRA=()
+          if [[ -n "${CMAKE_OSX_DEPLOYMENT_TARGET:-}" ]]; then
+            EXTRA+=("-DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}")
+          fi
           JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
           cmake -S . -B build-ci -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DEMERALD_FORCE_SETUP_HOST=ON
+            -DEMERALD_FORCE_SETUP_HOST=ON \
+            -DSNESRECOMP_SDL_BACKEND=SDL2 \
+            "${EXTRA[@]}"
           cmake --build build-ci --target EmeraldRecomp gba_recompile -j"${JOBS}"
           for cand in \
               build-ci/gbarecomp_build/gba_recompile \
@@ -185,6 +206,10 @@ jobs:
             windows-x64)
               PATTERN='cmake-clang-v1*windows*.zip'
               ASSET_NAME='cmake-clang-v1-windows-x64.zip'
+              ;;
+            macos-arm64|macos-x64)
+              PATTERN='cmake-clang-v1*macos*.zip'
+              ASSET_NAME='cmake-clang-v1-macos-universal.zip'
               ;;
             *) echo "::error::unknown artifact ${{ matrix.artifact }}"; exit 1 ;;
           esac
@@ -244,7 +269,8 @@ jobs:
             echo "::error::EMERALD_TOOLCHAIN_DIR not set — portable zip requires toolchain/"
             exit 1
           fi
-          # Prefer the gbarecomp build tree produced inside build-ci.
+          # Title packager stages host + sources, then calls
+          # gbarecomp/tools/stage_setup_sdk.sh for emitters/toolchain/DLLs.
           TOOLS_DIR=""
           for cand in \
               build-ci/gbarecomp_build \

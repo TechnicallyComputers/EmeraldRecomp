@@ -113,13 +113,23 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
         "${GBARECOMP_ROOT}/src/debug"
         src)
 
-    target_link_libraries(${TARGET} PRIVATE
-        "-Wl,--start-group"
-        gbarecomp_runtime
-        gbarecomp_debug
-        gbarecomp_gba
-        gbarecomp_armv4t
-        "-Wl,--end-group")
+    # GNU ld needs --start-group for the circular runtime stack; Apple ld
+    # rejects those flags.
+    if(APPLE)
+        target_link_libraries(${TARGET} PRIVATE
+            gbarecomp_runtime
+            gbarecomp_debug
+            gbarecomp_gba
+            gbarecomp_armv4t)
+    else()
+        target_link_libraries(${TARGET} PRIVATE
+            "-Wl,--start-group"
+            gbarecomp_runtime
+            gbarecomp_debug
+            gbarecomp_gba
+            gbarecomp_armv4t
+            "-Wl,--end-group")
+    endif()
 
     target_compile_definitions(${TARGET} PRIVATE
         GBARECOMP_DEFAULT_DEBUG_PORT=${PORT}
