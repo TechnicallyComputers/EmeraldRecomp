@@ -210,11 +210,15 @@ add_gba_variant(EmeraldRecomp emerald 19892 "EmeraldRecomp"
     "Pokemon Emerald (USA)" "f3ae088181bf583e55daf962a92bb46f4f1d07b7" 0x1F1C08FB)
 
 # Ship the game-owned, disabled-by-default mod catalog beside the executable.
+# VERBATIM is required: without it, Ninja's shell line escapes spaces but not
+# parentheses, so paths like ".../emerald-0.1 (1).0-..." fail at parse time
+# (`syntax error near unexpected token '('`) and the link never runs.
 set(EMERALD_PRELOADED_MODS "${CMAKE_CURRENT_SOURCE_DIR}/mods/preloaded")
 if(EXISTS "${EMERALD_PRELOADED_MODS}/packages")
     add_custom_command(TARGET EmeraldRecomp POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${EMERALD_PRELOADED_MODS}"
             "$<TARGET_FILE_DIR:EmeraldRecomp>/mods"
-        COMMENT "Preloading the Emerald mod catalog")
+        COMMENT "Preloading the Emerald mod catalog"
+        VERBATIM)
 endif()

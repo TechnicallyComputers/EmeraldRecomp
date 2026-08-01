@@ -196,9 +196,11 @@ automatically after a successful Generate & rebuild).
 
 Standalone:
 1. Install Python 3.
-2. Run ${EXE_BASENAME} (uses ./toolchain when present; else system cmake).
-3. Provide your legally owned Emerald (USA) ROM and a retail GBA BIOS dump.
-4. Follow the Generate & rebuild wizard.
+2. Extract to a simple path (avoid parentheses in the folder name — e.g.
+   prefer emerald-0.1.0-linux-x64 over a browser " (1)" rename).
+3. Run ${EXE_BASENAME} (uses ./toolchain when present; else system cmake).
+4. Provide your legally owned Emerald (USA) ROM and a retail GBA BIOS dump.
+5. Follow the Generate & rebuild wizard.
 
 RetComM uses this same zip: it promotes tools + toolchain into shared caches
 and preserves saves/user config.
