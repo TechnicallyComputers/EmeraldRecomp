@@ -8,7 +8,13 @@
 
 #include "launcher_seam.h"
 
+#include "codegen_setup.h"
 #include "game_launcher_boot.h"
+
+void game_launcher_attach_codegen(gbarecomp::RunOptions& opts) {
+    opts.launcher_codegen_setup = &emerald_codegen_setup_apply_void;
+    opts.launcher_codegen_relaunch = &emerald_codegen_relaunch_void;
+}
 
 int game_launcher_preboot(std::vector<std::string>& args,
                         const gbarecomp::RunOptions& opts) {

@@ -1,6 +1,8 @@
 [submodule "recomp-ui"]
 	path = recomp-ui
 	url = https://github.com/mstan/recomp-ui.git
+	branch = feat/setup-generate-wizard
 [submodule "gbarecomp"]
 	path = gbarecomp
-	url = https://github.com/mstan/gbarecomp.git
+	url = https://github.com/TechnicallyComputers/gbarecomp.git
+	branch = feat/local-codegen-sdk

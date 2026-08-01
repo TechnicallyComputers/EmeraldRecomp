@@ -130,15 +130,23 @@ importer output, so you can regenerate the C and build directly:
 
 ```
 # from PowerShell, mingw64 on PATH
-gba_recompile --rom variants/emerald/roms/emerald_usa.gba \
-              --config variants/emerald/symbols/emerald_usa.toml \
-              --out variants/emerald/generated
+python gbarecomp/gbarecomp_cli.py generate \
+  --rom variants/emerald/roms/emerald_usa.gba \
+  --config variants/emerald/symbols/emerald_usa.toml \
+  --out-dir variants/emerald/generated \
+  --project-root . \
+  --bios gbarecomp/bios/gba_bios.bin
 cmake -S . -B build -G Ninja
 cmake --build build --target EmeraldRecomp
 ```
 
-(`gba_recompile` is built from the `gbarecomp` checkout; see that repo's README.)
-The recompiled translation unit is large — expect a multi-minute compile.
+(`gba_recompile` is built from the `gbarecomp` checkout; see that repo's
+[`docs/LOCAL_CODEGEN_SDK.md`](gbarecomp/docs/LOCAL_CODEGEN_SDK.md).)
+
+Without generated cart C, configure builds a **setup host** (empty dispatch
+stub + recomp-ui Generate & rebuild wizard). Force that path with
+`-DEMERALD_FORCE_SETUP_HOST=ON`. The recompiled translation units are large —
+expect a multi-minute compile after generate.
 
 ## Legal
 

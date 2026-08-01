@@ -1,0 +1,326 @@
+# Build Emerald setup-host packages for Linux and Windows.
+# Ships a GUI generate & rebuild host + sources + gba_recompile —
+# not cart C, not BIOS dumps, not ROMs. First-run Generate emits
+# cart (+ optional BIOS) C locally, then rebuilds via portable toolchain/.
+#
+# Triggers:
+#   - workflow_dispatch — prompts for version; optionally tags + publishes
+#   - push tags matching v* — builds + publishes that tag
+
+name: Release builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 0.1.0 or v0.1.0)'
+        required: true
+        type: string
+      publish:
+        description: 'Create git tag vX.Y.Z and GitHub Release'
+        required: true
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: emerald-release-${{ github.event_name }}-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  CMAKE_BUILD_TYPE: Release
+
+jobs:
+  prepare:
+    name: Resolve version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      publish: ${{ steps.meta.outputs.publish }}
+    steps:
+      - name: Normalize version / tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            RAW="${{ github.event.inputs.version }}"
+            PUBLISH="${{ github.event.inputs.publish }}"
+          else
+            RAW="${{ github.ref_name }}"
+            PUBLISH="true"
+          fi
+          RAW="$(printf '%s' "${RAW}" | tr -d '[:space:]')"
+          if [[ -z "${RAW}" ]]; then
+            echo "::error::version is empty"
+            exit 1
+          fi
+          VER="${RAW#v}"
+          if [[ ! "${VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9.+-]*)?$ ]]; then
+            echo "::error::invalid version '${RAW}' (want X.Y.Z or vX.Y.Z)"
+            exit 1
+          fi
+          TAG="v${VER}"
+          echo "version=${VER}" >>"$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >>"$GITHUB_OUTPUT"
+          echo "publish=${PUBLISH}" >>"$GITHUB_OUTPUT"
+          echo "Using version ${VER} (tag ${TAG}), publish=${PUBLISH}"
+
+  build:
+    name: ${{ matrix.artifact }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: linux-x64
+            shell: bash
+          - os: windows-2022
+            artifact: windows-x64
+            shell: 'msys2 {0}'
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
+    env:
+      EMERALD_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pin VERSION for this release
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' "${EMERALD_RELEASE_VERSION}" >VERSION
+          echo "VERSION=$(cat VERSION)"
+
+      - name: Record pinned framework revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "gbarecomp=$(git -C gbarecomp rev-parse --short HEAD) ($(git -C gbarecomp rev-parse HEAD))"
+          echo "recomp-ui=$(git -C recomp-ui rev-parse --short HEAD)"
+
+      - name: Setup host mode (no cart generated C)
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf variants/emerald/generated
+          mkdir -p variants/emerald/generated
+          echo "Cleared cart generated/ — CI builds a setup host."
+
+      - name: Setup MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-pkgconf
+            curl
+            zip
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config \
+            libsdl2-dev libgl1-mesa-dev libxtst-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev libudev-dev zip
+
+      - name: Configure & build setup host + gba_recompile
+        run: |
+          set -euo pipefail
+          if [[ -d /mingw64/bin ]]; then
+            export PATH="/mingw64/bin:${PATH}"
+          fi
+          JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+          cmake -S . -B build-ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DEMERALD_FORCE_SETUP_HOST=ON
+          cmake --build build-ci --target EmeraldRecomp gba_recompile -j"${JOBS}"
+          for cand in \
+              build-ci/gbarecomp_build/gba_recompile \
+              build-ci/gbarecomp_build/gba_recompile.exe \
+              build-ci/gba_recompile \
+              build-ci/gba_recompile.exe; do
+            if [[ -f "$cand" ]]; then
+              chmod +x "$cand" 2>/dev/null || true
+              echo "gba_recompile at $cand"
+              break
+            fi
+          done
+
+      - name: Fetch portable toolchain pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "${{ matrix.artifact }}" in
+            linux-x64)
+              PATTERN='cmake-clang-v1*linux*.zip'
+              ASSET_NAME='cmake-clang-v1-linux-x64.zip'
+              ;;
+            windows-x64)
+              PATTERN='cmake-clang-v1*windows*.zip'
+              ASSET_NAME='cmake-clang-v1-windows-x64.zip'
+              ;;
+            *) echo "::error::unknown artifact ${{ matrix.artifact }}"; exit 1 ;;
+          esac
+          rm -rf .cache/toolchain-dl .cache/toolchain-pack
+          mkdir -p .cache/toolchain-dl .cache/toolchain-pack
+          if command -v gh >/dev/null 2>&1; then
+            gh release download -R TechnicallyComputers/retcomm-toolchains \
+              -p "${PATTERN}" -D .cache/toolchain-dl --clobber
+          elif command -v curl >/dev/null 2>&1; then
+            ASSET_URL="https://github.com/TechnicallyComputers/retcomm-toolchains/releases/latest/download/${ASSET_NAME}"
+            echo "gh not on PATH; curling ${ASSET_URL}"
+            curl -fsSL \
+              ${GH_TOKEN:+-H "Authorization: Bearer ${GH_TOKEN}"} \
+              -o ".cache/toolchain-dl/${ASSET_NAME}" \
+              "${ASSET_URL}"
+          else
+            echo "::error::neither gh nor curl available to fetch toolchain pack"
+            exit 1
+          fi
+          ZIP="$(find .cache/toolchain-dl -maxdepth 1 -type f -name '*.zip' | head -n1)"
+          if [[ -z "${ZIP}" ]]; then
+            echo "::error::no toolchain zip matching ${PATTERN}"
+            ls -la .cache/toolchain-dl >&2 || true
+            exit 1
+          fi
+          echo "Embedding toolchain from ${ZIP}"
+          if command -v unzip >/dev/null 2>&1; then
+            unzip -q "${ZIP}" -d .cache/toolchain-pack
+          else
+            python3 -c 'import zipfile,pathlib; z=next(pathlib.Path(".cache/toolchain-dl").glob("*.zip")); zipfile.ZipFile(z).extractall(".cache/toolchain-pack")'
+          fi
+          shopt -s nullglob
+          entries=(.cache/toolchain-pack/*)
+          shopt -u nullglob
+          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
+            EMERALD_TOOLCHAIN_DIR="$(cd "${entries[0]}" && pwd)"
+          else
+            EMERALD_TOOLCHAIN_DIR="$(cd .cache/toolchain-pack && pwd)"
+          fi
+          test -d "${EMERALD_TOOLCHAIN_DIR}/bin" || {
+            echo "::error::toolchain pack missing bin/ under ${EMERALD_TOOLCHAIN_DIR}"
+            find .cache/toolchain-pack -maxdepth 3 >&2 || true
+            exit 1
+          }
+          echo "EMERALD_TOOLCHAIN_DIR=${EMERALD_TOOLCHAIN_DIR}"
+          echo "EMERALD_TOOLCHAIN_DIR=${EMERALD_TOOLCHAIN_DIR}" >>"$GITHUB_ENV"
+
+      - name: Package setup zip
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package_setup_release.sh
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            export EMERALD_RUNTIME_BIN_DIR=/mingw64/bin
+          fi
+          export EMERALD_RELEASE_VERSION
+          if [[ -z "${EMERALD_TOOLCHAIN_DIR:-}" || ! -d "${EMERALD_TOOLCHAIN_DIR}/bin" ]]; then
+            echo "::error::EMERALD_TOOLCHAIN_DIR not set — portable zip requires toolchain/"
+            exit 1
+          fi
+          # Prefer the gbarecomp build tree produced inside build-ci.
+          TOOLS_DIR=""
+          for cand in \
+              build-ci/gbarecomp_build \
+              build-ci \
+              gbarecomp/build; do
+            if [[ -f "${cand}/gba_recompile" || -f "${cand}/gba_recompile.exe" ]]; then
+              TOOLS_DIR="${cand}"
+              break
+            fi
+          done
+          if [[ -z "${TOOLS_DIR}" ]]; then
+            echo "::error::gba_recompile not found after build" >&2
+            find build-ci -name 'gba_recompile*' 2>/dev/null | head >&2 || true
+            exit 1
+          fi
+          scripts/package_setup_release.sh build-ci "${{ matrix.artifact }}" "${TOOLS_DIR}"
+          ls -la dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: emerald-${{ matrix.artifact }}
+          path: dist/emerald-*-${{ matrix.artifact }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: GitHub Release
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout (for tagging on workflow_dispatch)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+
+      - name: Flatten zips
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find artifacts -type f -name 'emerald-*.zip' -exec cp -v {} dist/ \;
+          ls -la dist/
+
+      - name: Ensure release tag exists
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists locally"
+          else
+            git tag -a "${TAG}" -m "EmeraldRecomp ${TAG}"
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already on origin"
+          else
+            git push origin "refs/tags/${TAG}"
+          fi
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: EmeraldRecomp ${{ needs.prepare.outputs.tag }}
+          files: |
+            dist/emerald-*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          target_commitish: ${{ github.sha }}

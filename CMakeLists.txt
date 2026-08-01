@@ -34,6 +34,33 @@ if(NOT EXISTS "${GBARECOMP_ROOT}/CMakeLists.txt")
         "-DGBARECOMP_ROOT=<path> at configure time.")
 endif()
 
+# Setup host: launcher + runtime without cart shards (first-run generate).
+option(EMERALD_FORCE_SETUP_HOST
+    "Build without linking cart generated C even if present" OFF)
+option(EMERALD_REQUIRE_GENERATED
+    "Fail configure if variants/emerald/generated is missing" OFF)
+
+set(EMERALD_GEN_MARKER
+    "${CMAKE_CURRENT_SOURCE_DIR}/variants/emerald/generated/dispatch_table.cpp")
+set(EMERALD_HAS_GENERATED FALSE)
+if(EXISTS "${EMERALD_GEN_MARKER}" AND NOT EMERALD_FORCE_SETUP_HOST)
+    set(EMERALD_HAS_GENERATED TRUE)
+endif()
+
+if(EMERALD_REQUIRE_GENERATED AND NOT EMERALD_HAS_GENERATED)
+    message(FATAL_ERROR
+        "EMERALD_REQUIRE_GENERATED=ON but ${EMERALD_GEN_MARKER} is missing. "
+        "Run gbarecomp_cli.py generate, or leave EMERALD_REQUIRE_GENERATED off "
+        "to build the setup host.")
+endif()
+
+if(NOT EMERALD_HAS_GENERATED)
+    message(STATUS
+        "Emerald: setup host (no cart generated C) — first-run Generate & rebuild")
+    set(GBARECOMP_ALLOW_NO_GENERATED ON CACHE BOOL
+        "Allow runtime helper without cart shards (setup host)" FORCE)
+endif()
+
 add_subdirectory("${GBARECOMP_ROOT}" gbarecomp_build EXCLUDE_FROM_ALL)
 
 add_executable(verify_rom_hash tools/verify_rom_hash/main.cpp)
@@ -47,15 +74,24 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
             "${NAME}: stale monolithic generated/recompiled.cpp found. "
             "Regenerate with the current gba_recompile before building.")
     endif()
-    file(GLOB VARIANT_GENERATED CONFIGURE_DEPENDS
-        "${VARIANT_DIR}/generated/*.c"
-        "${VARIANT_DIR}/generated/*.cpp")
 
     set(VARIANT_GAME_SOURCES src/main.cpp)
     if(GBARECOMP_ENABLE_MODS)
         list(APPEND VARIANT_GAME_SOURCES
             src/mods/emerald_absolute_rtc_plugin.cpp)
     endif()
+
+    set(VARIANT_GENERATED)
+    if(EMERALD_HAS_GENERATED)
+        file(GLOB VARIANT_GENERATED CONFIGURE_DEPENDS
+            "${VARIANT_DIR}/generated/*.c"
+            "${VARIANT_DIR}/generated/*.cpp")
+        message(STATUS "${NAME}: linking generated cart C (full runtime)")
+    else()
+        list(APPEND VARIANT_GENERATED
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/setup_stubs/cart_dispatch_stub.cpp")
+    endif()
+
     add_executable(${TARGET}
         ${VARIANT_GAME_SOURCES}
         ${VARIANT_GENERATED})
@@ -94,6 +130,10 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
         GBARECOMP_BUILTIN_CRC32=${ROM_CRC32}
         GBARECOMP_BUILTIN_REGION="USA")
 
+    if(NOT EMERALD_HAS_GENERATED)
+        target_compile_definitions(${TARGET} PRIVATE EMERALD_SETUP_HOST=1)
+    endif()
+
     if(GBAGAME_RECOMP_UI)
         target_link_libraries(${TARGET} PRIVATE game_launcher_ui)
         # Per-variant box art: variants share one build dir, so each stages
@@ -131,10 +171,15 @@ endfunction()
 option(GBAGAME_RECOMP_UI "Build the recomp-ui pre-boot launcher" ON)
 if(GBAGAME_RECOMP_UI)
     include(${RECOMP_UI_ROOT}/recomp_ui.cmake)
-    add_library(game_launcher_ui STATIC src/game_launcher_boot.cpp)
+    add_library(game_launcher_ui STATIC
+        src/game_launcher_boot.cpp
+        src/codegen_setup.c
+        "${GBARECOMP_ROOT}/host/gbarecomp_codegen_host.c")
     target_include_directories(game_launcher_ui PRIVATE
         "${GBARECOMP_ROOT}/src/runtime"   # launcher_seam.h + runtime.h
         "${GBARECOMP_ROOT}/src/gba"
+        "${GBARECOMP_ROOT}/host"
+        "${RECOMP_UI_ROOT}/src"
         src
     )
     if(GBARECOMP_ENABLE_MODS)

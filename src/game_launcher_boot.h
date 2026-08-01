@@ -14,5 +14,7 @@
 
 #include "runtime.h"
 
+void game_launcher_attach_codegen(gbarecomp::RunOptions& opts);
+
 int game_launcher_preboot(std::vector<std::string>& args,
                         const gbarecomp::RunOptions& opts);

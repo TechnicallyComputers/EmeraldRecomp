@@ -131,8 +131,9 @@ int main(int argc, char** argv) {
     opts.launcher_game_config = GBARECOMP_DEFAULT_GAME_CONFIG;  // prefill ROM/BIOS
 
 #if defined(GBAGAME_RECOMP_UI)
+    game_launcher_attach_codegen(opts);
     std::vector<std::string> args(argv, argv + argc);
-    if (game_launcher_preboot(args, opts)) return 0;   // user quit the launcher
+    if (game_launcher_preboot(args, opts)) return 0;   // user quit / relaunch
     std::vector<char*> av;
     av.reserve(args.size());
     for (auto& s : args) av.push_back(s.data());
