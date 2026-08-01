@@ -33,8 +33,8 @@ static const GbarecompCodegenHostConfig kEmeraldCodegenConfig = {
     .prepare_note_no_cmake =
         "Uses your verified Pokémon Emerald (USA) ROM with the local "
         "gbarecomp SDK to regenerate variants/emerald/generated. "
-        "CMake/build dir not found — rebuild manually: cmake --build build "
-        "&& relaunch.",
+        "Build dir could not be resolved — rebuild manually after "
+        "ensure-toolchain, then relaunch.",
 };
 
 void emerald_codegen_setup_apply(RecompLauncherCGameInfo* gi) {

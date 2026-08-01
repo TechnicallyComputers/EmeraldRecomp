@@ -8,12 +8,11 @@
 #
 # Writes: dist/emerald-<VERSION>-<artifact-tag>.zip
 #
-# Contents (no ROM / retail BIOS / generated cart C):
-#   EmeraldRecomp[.exe]  — setup host
-#   assets/, variants/emerald/{game.toml,symbols,config,launcher}/
-#   gbarecomp/           — CLI + host + gba_recompile + sdk helpers
-#   recomp-ui/           — launcher UI sources (needed to rebuild)
-#   toolchain/           — via gbarecomp/tools/stage_setup_sdk.sh
+# Lean by default (BPE / recomp-ui modular toolchain flow):
+#   no embedded toolchain/ — RetComM / the setup wizard download cmake-clang-v1
+#   from TechnicallyComputers/retcomm-toolchains (or accept an offline zip).
+# Opt-in offline pack: EMERALD_EMBED_TOOLCHAIN=1 or --embed-toolchain via env
+#   GBARECOMP_TOOLCHAIN_DIR / EMERALD_TOOLCHAIN_DIR.
 
 set -euo pipefail
 
@@ -22,6 +21,10 @@ BUILD_DIR="${1:-}"
 ARTIFACT_TAG="${2:-}"
 RECOMPILER_BUILD="${3:-}"
 RUNTIME_BIN_DIR="${EMERALD_RUNTIME_BIN_DIR:-${BPE_RUNTIME_BIN_DIR:-/mingw64/bin}}"
+EMBED_TOOLCHAIN=0
+if [[ "${EMERALD_EMBED_TOOLCHAIN:-${GBARECOMP_EMBED_TOOLCHAIN:-0}}" == "1" ]]; then
+  EMBED_TOOLCHAIN=1
+fi
 
 if [[ -z "${BUILD_DIR}" || -z "${ARTIFACT_TAG}" ]]; then
   echo "usage: $0 <build-dir> <artifact-tag> [gba-recompile-build-dir]" >&2
@@ -133,7 +136,6 @@ copy_tree_filtered() {
   fi
 }
 
-# Framework + UI (emitters / toolchain / DLLs finished by stage_setup_sdk.sh).
 copy_tree_filtered "${ROOT}/gbarecomp" "${STAGE}/gbarecomp" \
   --exclude '.git' \
   --exclude 'build' \
@@ -147,7 +149,6 @@ copy_tree_filtered "${ROOT}/recomp-ui" "${STAGE}/recomp-ui" \
   --exclude 'build' \
   --exclude '__pycache__'
 
-# Never ship cart generated C or ROM dumps.
 rm -rf "${STAGE}/variants/emerald/generated/"*.cpp \
        "${STAGE}/variants/emerald/generated/"*.c \
        "${STAGE}/variants/emerald/roms" 2>/dev/null || true
@@ -179,8 +180,15 @@ stage_args=(
 if [[ -n "${RECOMPILER_BUILD}" ]]; then
   stage_args+=(--recompiler-build "${RECOMPILER_BUILD}")
 fi
-if [[ -n "${GBARECOMP_TOOLCHAIN_DIR:-${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR:-}}}" ]]; then
-  stage_args+=(--toolchain-dir "${GBARECOMP_TOOLCHAIN_DIR:-${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR}}}")
+if [[ "${EMBED_TOOLCHAIN}" -eq 1 ]]; then
+  TC="${GBARECOMP_TOOLCHAIN_DIR:-${EMERALD_TOOLCHAIN_DIR:-${BPE_TOOLCHAIN_DIR:-}}}"
+  if [[ -z "${TC}" || ! -d "${TC}/bin" ]]; then
+    echo "error: EMERALD_EMBED_TOOLCHAIN=1 requires GBARECOMP_TOOLCHAIN_DIR (bin/ present)" >&2
+    exit 1
+  fi
+  stage_args+=(--toolchain-dir "${TC}")
+else
+  stage_args+=(--allow-no-toolchain)
 fi
 
 bash "${STAGE_SDK}" "${stage_args[@]}"
@@ -190,20 +198,24 @@ Pokémon Emerald Recompiled ${VERSION} — setup package
 Platform: ${ARTIFACT_TAG}
 
 One zip for first install and updates. Does NOT include ROM dumps, retail GBA
-BIOS dumps, or pre-generated cart C. The emitter (gba_recompile) and CLI live
-under gbarecomp/. A portable cmake/clang pack is under toolchain/ (removed
-automatically after a successful Generate & rebuild).
+BIOS dumps, pre-generated cart C, or an embedded portable toolchain/.
+
+The emitter (gba_recompile) and CLI live under gbarecomp/. cmake/clang come
+from TechnicallyComputers/retcomm-toolchains (downloaded by RetComM or the
+first-run wizard), an offline cmake-clang-v1-*.zip, GBARECOMP_TOOLCHAIN_DIR /
+RETCOMM_TOOLCHAIN_DIR, or a system cmake on PATH.
 
 Standalone:
 1. Install Python 3.
 2. Extract to a simple path (avoid parentheses in the folder name — e.g.
    prefer emerald-0.1.0-linux-x64 over a browser " (1)" rename).
-3. Run ${EXE_BASENAME} (uses ./toolchain when present; else system cmake).
-4. Provide your legally owned Emerald (USA) ROM and a retail GBA BIOS dump.
+3. Run ${EXE_BASENAME}.
+4. On first run, download or pick the portable toolchain, then provide your
+   legally owned Emerald (USA) ROM (and a GBA BIOS dump for BIOS backends).
 5. Follow the Generate & rebuild wizard.
 
-RetComM uses this same zip: it promotes tools + toolchain into shared caches
-and preserves saves/user config.
+RetComM uses this same zip: it downloads the toolchain into a shared cache,
+promotes tools, and preserves saves/user config.
 EOF
 
 find "${STAGE}" -exec touch -c {} + 2>/dev/null || find "${STAGE}" -exec touch {} +

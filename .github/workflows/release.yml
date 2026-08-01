@@ -1,7 +1,8 @@
-# Build Emerald setup-host packages for Linux, Windows, macOS (arm64 + Intel).
+# Build Emerald lean setup-host packages for Linux, Windows, macOS (arm64 + Intel).
 # Ships a GUI generate & rebuild host + sources + gba_recompile —
-# not cart C, not BIOS dumps, not ROMs. First-run Generate emits
-# cart (+ optional BIOS) C locally, then rebuilds via portable toolchain/.
+# not cart C, not BIOS dumps, not ROMs, not an embedded toolchain/.
+# RetComM / the recomp-ui wizard download cmake-clang-v1 from
+# TechnicallyComputers/retcomm-toolchains (same modular flow as BPE/psxrecomp).
 #
 # Triggers:
 #   - workflow_dispatch — prompts for version; optionally tags + publishes
@@ -193,70 +194,6 @@ jobs:
             fi
           done
 
-      - name: Fetch portable toolchain pack
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          case "${{ matrix.artifact }}" in
-            linux-x64)
-              PATTERN='cmake-clang-v1*linux*.zip'
-              ASSET_NAME='cmake-clang-v1-linux-x64.zip'
-              ;;
-            windows-x64)
-              PATTERN='cmake-clang-v1*windows*.zip'
-              ASSET_NAME='cmake-clang-v1-windows-x64.zip'
-              ;;
-            macos-arm64|macos-x64)
-              PATTERN='cmake-clang-v1*macos*.zip'
-              ASSET_NAME='cmake-clang-v1-macos-universal.zip'
-              ;;
-            *) echo "::error::unknown artifact ${{ matrix.artifact }}"; exit 1 ;;
-          esac
-          rm -rf .cache/toolchain-dl .cache/toolchain-pack
-          mkdir -p .cache/toolchain-dl .cache/toolchain-pack
-          if command -v gh >/dev/null 2>&1; then
-            gh release download -R TechnicallyComputers/retcomm-toolchains \
-              -p "${PATTERN}" -D .cache/toolchain-dl --clobber
-          elif command -v curl >/dev/null 2>&1; then
-            ASSET_URL="https://github.com/TechnicallyComputers/retcomm-toolchains/releases/latest/download/${ASSET_NAME}"
-            echo "gh not on PATH; curling ${ASSET_URL}"
-            curl -fsSL \
-              ${GH_TOKEN:+-H "Authorization: Bearer ${GH_TOKEN}"} \
-              -o ".cache/toolchain-dl/${ASSET_NAME}" \
-              "${ASSET_URL}"
-          else
-            echo "::error::neither gh nor curl available to fetch toolchain pack"
-            exit 1
-          fi
-          ZIP="$(find .cache/toolchain-dl -maxdepth 1 -type f -name '*.zip' | head -n1)"
-          if [[ -z "${ZIP}" ]]; then
-            echo "::error::no toolchain zip matching ${PATTERN}"
-            ls -la .cache/toolchain-dl >&2 || true
-            exit 1
-          fi
-          echo "Embedding toolchain from ${ZIP}"
-          if command -v unzip >/dev/null 2>&1; then
-            unzip -q "${ZIP}" -d .cache/toolchain-pack
-          else
-            python3 -c 'import zipfile,pathlib; z=next(pathlib.Path(".cache/toolchain-dl").glob("*.zip")); zipfile.ZipFile(z).extractall(".cache/toolchain-pack")'
-          fi
-          shopt -s nullglob
-          entries=(.cache/toolchain-pack/*)
-          shopt -u nullglob
-          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
-            EMERALD_TOOLCHAIN_DIR="$(cd "${entries[0]}" && pwd)"
-          else
-            EMERALD_TOOLCHAIN_DIR="$(cd .cache/toolchain-pack && pwd)"
-          fi
-          test -d "${EMERALD_TOOLCHAIN_DIR}/bin" || {
-            echo "::error::toolchain pack missing bin/ under ${EMERALD_TOOLCHAIN_DIR}"
-            find .cache/toolchain-pack -maxdepth 3 >&2 || true
-            exit 1
-          }
-          echo "EMERALD_TOOLCHAIN_DIR=${EMERALD_TOOLCHAIN_DIR}"
-          echo "EMERALD_TOOLCHAIN_DIR=${EMERALD_TOOLCHAIN_DIR}" >>"$GITHUB_ENV"
-
       - name: Package setup zip
         run: |
           set -euo pipefail
@@ -265,12 +202,10 @@ jobs:
             export EMERALD_RUNTIME_BIN_DIR=/mingw64/bin
           fi
           export EMERALD_RELEASE_VERSION
-          if [[ -z "${EMERALD_TOOLCHAIN_DIR:-}" || ! -d "${EMERALD_TOOLCHAIN_DIR}/bin" ]]; then
-            echo "::error::EMERALD_TOOLCHAIN_DIR not set — portable zip requires toolchain/"
-            exit 1
-          fi
-          # Title packager stages host + sources, then calls
-          # gbarecomp/tools/stage_setup_sdk.sh for emitters/toolchain/DLLs.
+          # Lean zip: emitters + sources only. Toolchain is downloaded by
+          # RetComM / the setup wizard (or provided as an offline zip).
+          # Pass EMERALD_EMBED_TOOLCHAIN=1 + EMERALD_TOOLCHAIN_DIR only for
+          # offline-first packs.
           TOOLS_DIR=""
           for cand in \
               build-ci/gbarecomp_build \
@@ -287,6 +222,12 @@ jobs:
             exit 1
           fi
           scripts/package_setup_release.sh build-ci "${{ matrix.artifact }}" "${TOOLS_DIR}"
+          # Sanity: lean packs must not ship zip-root toolchain/bin
+          if unzip -l dist/emerald-*-"${{ matrix.artifact }}".zip \
+               | awk '{print $NF}' | grep -E '^toolchain/(bin/|bin$)' >/dev/null; then
+            echo "::error::zip unexpectedly contains toolchain/bin (lean pack expected)"
+            exit 1
+          fi
           ls -la dist/
 
       - name: Upload artifact
