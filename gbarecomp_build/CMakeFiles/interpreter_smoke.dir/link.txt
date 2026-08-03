@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/interpreter_smoke.dir/link.d CMakeFiles/interpreter_smoke.dir/tests/armv4t/interpreter_smoke.cpp.o -o interpreter_smoke  libgbarecomp_armv4t.a

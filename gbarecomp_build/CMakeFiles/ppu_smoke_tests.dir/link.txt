@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ppu_smoke_tests.dir/link.d CMakeFiles/ppu_smoke_tests.dir/tests/ppu_smoke/test_main.cpp.o -o ppu_smoke_tests  libgbarecomp_gba.a libgbarecomp_armv4t.a

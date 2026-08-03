@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgbarecomp_heal_gate.a CMakeFiles/gbarecomp_heal_gate.dir/src/runtime/heal_gate.cpp.o
+/usr/bin/ranlib libgbarecomp_heal_gate.a

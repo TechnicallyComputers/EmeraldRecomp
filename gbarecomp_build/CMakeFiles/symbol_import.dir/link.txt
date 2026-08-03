@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/symbol_import.dir/link.d CMakeFiles/symbol_import.dir/tools/symbol_import/main.cpp.o -o symbol_import  libgbarecomp_armv4t.a

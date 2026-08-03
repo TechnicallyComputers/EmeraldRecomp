@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/netplay_smoke_tests.dir/link.d CMakeFiles/netplay_smoke_tests.dir/tests/netplay/test_main.cpp.o CMakeFiles/netplay_smoke_tests.dir/tests/link/runtime_stubs.cpp.o -o netplay_smoke_tests  libgbarecomp_netplay.a ../recomp-net-build/librecomp_net.a libgbarecomp_gba.a libgbarecomp_armv4t.a

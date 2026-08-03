@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/presentation_layout_tests.dir/link.d CMakeFiles/presentation_layout_tests.dir/tests/presentation_layout/test_main.cpp.o -o presentation_layout_tests

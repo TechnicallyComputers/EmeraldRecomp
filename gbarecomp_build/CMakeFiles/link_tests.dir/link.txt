@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/link_tests.dir/link.d CMakeFiles/link_tests.dir/tests/link/test_main.cpp.o CMakeFiles/link_tests.dir/tests/link/runtime_stubs.cpp.o -o link_tests  libgbarecomp_gba.a libgbarecomp_armv4t.a

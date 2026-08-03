@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/save_config_tests.dir/link.d CMakeFiles/save_config_tests.dir/tests/runtime/save_config_test.cpp.o CMakeFiles/save_config_tests.dir/src/runtime/save_config.cpp.o -o save_config_tests  libgbarecomp_gba.a libgbarecomp_armv4t.a

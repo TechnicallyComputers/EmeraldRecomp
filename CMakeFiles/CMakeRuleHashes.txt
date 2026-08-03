@@ -1,0 +1,2 @@
+# Hashes of file build rules.
+30e927f45ac8090ad171b781e461c01b gbarecomp_build/codegen_tests_generated/test_funcs.cpp

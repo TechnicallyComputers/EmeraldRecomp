@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/mod_runtime_tests.dir/link.d CMakeFiles/mod_runtime_tests.dir/tests/mod_runtime/test_main.cpp.o CMakeFiles/mod_runtime_tests.dir/src/runtime/mod_runtime.cpp.o CMakeFiles/mod_runtime_tests.dir/src/gba/crc32.cpp.o CMakeFiles/mod_runtime_tests.dir/src/gba/sha1.cpp.o -o mod_runtime_tests

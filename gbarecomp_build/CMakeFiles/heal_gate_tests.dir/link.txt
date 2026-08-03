@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/heal_gate_tests.dir/link.d CMakeFiles/heal_gate_tests.dir/tests/heal_gate/heal_gate_test.cpp.o CMakeFiles/heal_gate_tests.dir/tests/heal_gate/runtime_stubs.cpp.o -o heal_gate_tests  libgbarecomp_heal_gate.a libgbarecomp_gba.a libgbarecomp_armv4t.a

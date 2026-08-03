@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/gba_recompile.dir/link.d CMakeFiles/gba_recompile.dir/tools/gba_recompile/main.cpp.o CMakeFiles/gba_recompile.dir/tools/gba_recompile/config.cpp.o -o gba_recompile  libgbarecomp_recompile_core.a libgbarecomp_armv4t.a libgbarecomp_gba.a libgbarecomp_armv4t.a

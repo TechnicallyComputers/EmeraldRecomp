@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/decoder_smoke.dir/link.d CMakeFiles/decoder_smoke.dir/tests/armv4t/decoder_smoke.cpp.o -o decoder_smoke  libgbarecomp_armv4t.a

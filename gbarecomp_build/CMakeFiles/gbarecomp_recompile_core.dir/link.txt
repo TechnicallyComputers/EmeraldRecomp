@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgbarecomp_recompile_core.a CMakeFiles/gbarecomp_recompile_core.dir/src/recompile/function_finder.cpp.o CMakeFiles/gbarecomp_recompile_core.dir/src/recompile/emit_function.cpp.o CMakeFiles/gbarecomp_recompile_core.dir/src/recompile/codegen_shards.cpp.o CMakeFiles/gbarecomp_recompile_core.dir/src/recompile/dispatch_table_entries.cpp.o
+/usr/bin/ranlib libgbarecomp_recompile_core.a

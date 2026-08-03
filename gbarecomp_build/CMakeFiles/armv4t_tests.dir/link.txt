@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/armv4t_tests.dir/link.d CMakeFiles/armv4t_tests.dir/tests/armv4t/test_main.cpp.o -o armv4t_tests  libgbarecomp_armv4t.a

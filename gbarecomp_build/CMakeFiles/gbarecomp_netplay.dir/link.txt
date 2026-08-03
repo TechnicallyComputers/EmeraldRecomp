@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgbarecomp_netplay.a CMakeFiles/gbarecomp_netplay.dir/src/netplay/gba_netplay.cpp.o
+/usr/bin/ranlib libgbarecomp_netplay.a

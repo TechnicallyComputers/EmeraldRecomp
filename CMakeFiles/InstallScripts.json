@@ -1,0 +1,9 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/alex/Documents/GitHub/EmeraldRecomp/cmake_install.cmake",
+		"/home/alex/Documents/GitHub/EmeraldRecomp/gbarecomp_build/cmake_install.cmake",
+		"/home/alex/Documents/GitHub/EmeraldRecomp/recomp-net-build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

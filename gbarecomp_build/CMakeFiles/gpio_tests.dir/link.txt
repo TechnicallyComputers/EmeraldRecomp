@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/gpio_tests.dir/link.d CMakeFiles/gpio_tests.dir/tests/gpio/test_main.cpp.o -o gpio_tests  libgbarecomp_gba.a libgbarecomp_armv4t.a

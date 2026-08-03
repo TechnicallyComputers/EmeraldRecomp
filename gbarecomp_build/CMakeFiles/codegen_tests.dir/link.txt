@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/codegen_tests.dir/link.d CMakeFiles/codegen_tests.dir/tests/codegen/test_main.cpp.o CMakeFiles/codegen_tests.dir/tests/codegen/test_cases.cpp.o CMakeFiles/codegen_tests.dir/tests/codegen/stubs.cpp.o CMakeFiles/codegen_tests.dir/codegen_tests_generated/test_funcs.cpp.o -o codegen_tests  libgbarecomp_armv4t.a

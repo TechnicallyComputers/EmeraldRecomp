@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/function_finder_tests.dir/link.d CMakeFiles/function_finder_tests.dir/tests/recompile/function_finder_test.cpp.o -o function_finder_tests  libgbarecomp_recompile_core.a libgbarecomp_armv4t.a

@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/gba_scan.dir/link.d CMakeFiles/gba_scan.dir/tools/gba_scan/main.cpp.o -o gba_scan  libgbarecomp_armv4t.a libgbarecomp_gba.a libgbarecomp_armv4t.a

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgbarecomp_armv4t.a CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/arm_decode.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/thumb_decode.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/arm_ir.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/arm_codegen.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/runtime_arm.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/symbol_lookup.cpp.o CMakeFiles/gbarecomp_armv4t.dir/src/armv4t/interpreter.cpp.o
+/usr/bin/ranlib libgbarecomp_armv4t.a

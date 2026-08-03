@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/timer_tests.dir/link.d CMakeFiles/timer_tests.dir/tests/timers/test_main.cpp.o -o timer_tests  libgbarecomp_gba.a libgbarecomp_armv4t.a
