@@ -132,12 +132,19 @@ int main(int argc, char** argv) {
 
 #if defined(GBAGAME_RECOMP_UI)
     game_launcher_attach_codegen(opts);
-    std::vector<std::string> args(argv, argv + argc);
-    if (game_launcher_preboot(args, opts)) return 0;   // user quit / relaunch
-    std::vector<char*> av;
-    av.reserve(args.size());
-    for (auto& s : args) av.push_back(s.data());
-    return gbarecomp::run_game(static_cast<int>(av.size()), av.data(), opts);
+    for (;;) {
+        std::vector<std::string> args(argv, argv + argc);
+        if (game_launcher_preboot(args, opts))
+            return 0;  // user quit launcher / relaunch helper
+        std::vector<char*> av;
+        av.reserve(args.size());
+        for (auto& s : args) av.push_back(s.data());
+        const int rc =
+            gbarecomp::run_game(static_cast<int>(av.size()), av.data(), opts);
+        /* LAN netplay: window close or peer BYE → reopen lobby waiting room. */
+        if (!game_launcher_should_soft_return())
+            return rc;
+    }
 #else
     return gbarecomp::run_game(argc, argv, opts);
 #endif

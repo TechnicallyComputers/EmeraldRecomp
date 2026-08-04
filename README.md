@@ -110,43 +110,127 @@ emitter gaps that close over time. Self-improvement is on by default; set
 ## Building from source
 
 **Prerequisites (Windows):** [MSYS2](https://www.msys2.org/) with the mingw64
-toolchain (`gcc`/`g++`), CMake 3.16+, Ninja, and SDL2 (mingw64 package). Builds
+toolchain (`gcc`/`g++`), CMake 3.20+, Ninja, and SDL2 (mingw64 package). Builds
 are invoked from PowerShell with the mingw64 toolchain on `PATH`.
 
-**1. Clone this repo next to `gbarecomp`** (the game repo builds against the
-sibling engine checkout on `main`):
+**Linux:** CMake 3.20+, Ninja, a C++20 compiler, and SDL2 devel packages.
 
-```
-git clone https://github.com/mstan/gbarecomp.git
-git clone https://github.com/mstan/EmeraldRecomp.git
+**1. Clone with submodules.** This repo vendors `gbarecomp` and `recomp-ui`.
+Netplay also needs `gbarecomp`'s nested `lib/recomp-net` submodule (branch
+`main`):
+
+```bash
+git clone --recurse-submodules https://github.com/mstan/EmeraldRecomp.git
 cd EmeraldRecomp
+
+# If you already cloned without submodules:
+git submodule update --init --recursive
+# Ensure recomp-net is present (nested under gbarecomp):
+git -C gbarecomp submodule update --init lib/recomp-net
 ```
+
+Override the engine path only if your layout differs:
+`-DGBARECOMP_ROOT=/path/to/gbarecomp`.
 
 **2. Supply your ROM** at `variants/emerald/roms/emerald_usa.gba` (SHA-1 above).
-ROMs are gitignored and never committed.
+ROMs are gitignored and never committed. Place a retail GBA BIOS dump at
+`gbarecomp/bios/gba_bios.bin` when regenerating or running (not redistributed).
 
-**3. Recompile + build.** The committed `variants/emerald/symbols/*.toml` are the
-importer output, so you can regenerate the C and build directly:
+**3. Recompile + build (with netplay).** Link-cable delay-sync is **on by
+default** (`GBARECOMP_ENABLE_NET=ON`). Opt out with
+`-DGBARECOMP_ENABLE_NET=OFF` if you do not want `recomp-net` linked.
 
-```
-# from PowerShell, mingw64 on PATH
+```bash
+# Generate cart C (skip if variants/emerald/generated/ already has shards)
 python gbarecomp/gbarecomp_cli.py generate \
   --rom variants/emerald/roms/emerald_usa.gba \
   --config variants/emerald/symbols/emerald_usa.toml \
   --out-dir variants/emerald/generated \
   --project-root . \
   --bios gbarecomp/bios/gba_bios.bin
+
+# Configure + build (Windows: run from PowerShell with mingw64 on PATH)
 cmake -S . -B build -G Ninja
 cmake --build build --target EmeraldRecomp
 ```
 
-(`gba_recompile` is built from the `gbarecomp` checkout; see that repo's
+**Rebuild after pulling** (submodules + engine netplay changes):
+
+```bash
+git pull
+git submodule update --init --recursive
+git -C gbarecomp submodule update --init lib/recomp-net
+cmake -S . -B build -G Ninja -DGBARECOMP_ENABLE_NET=ON
+cmake --build build --target EmeraldRecomp
+```
+
+Binary: `build/EmeraldRecomp` (or `build/EmeraldRecomp.exe` on Windows).
+
+(`gba_recompile` comes from the `gbarecomp` checkout; see
 [`docs/LOCAL_CODEGEN_SDK.md`](gbarecomp/docs/LOCAL_CODEGEN_SDK.md).)
 
 Without generated cart C, configure builds a **setup host** (empty dispatch
 stub + recomp-ui Generate & rebuild wizard). Force that path with
 `-DEMERALD_FORCE_SETUP_HOST=ON`. The recompiled translation units are large —
 expect a multi-minute compile after generate.
+
+### Netplay (LAN delay-sync, experimental)
+
+recomp-ui **Netplay** supports LAN / Direct IP lobbies (no online MotK yet).
+Both peers wait in the room, host presses Play, then the runtime delay-syncs
+over UDP (`recomp-net`) with opaque SIO/pad samples. Build with
+`GBARECOMP_ENABLE_NET=ON` (Emerald default).
+
+**From the launcher (preferred)**
+
+1. Start two `EmeraldRecomp` processes (same machine or LAN).
+2. Open **Netplay** → Host Lobby with **LAN/Direct IP Only** (or Join the
+   listed `LAN - …` row / Direct IP).
+3. When both seats are filled, host **Play**. Look for
+   `[gbarecomp:netplay] LAN delay-sync ON …` on stderr.
+4. Closing either window (or a peer drop) soft-returns **both** clients to the
+   Netplay waiting room for a rematch. The dashboard stays single-player (link
+   cable is not a second pad card).
+
+Cable Club / Multi-Player SIO is in progress: samples carry up to **14** Multi
+words per frame (v2 packing), the child seat auto-starts when the parent's
+word is visible, Multi SI/SD cable-sense bits are live while LAN netplay is
+plugged, and each seat latches the last-seen Multi word so Emerald's
+`DoHandshake` keeps a stable 2-player `SIOMULTI` snapshot under delay-sync.
+Host (slot 0) confirms with **A** when prompted; watch for `send=8FFF` /
+`latch=8FFF/B9A0`. While netplay is active, stderr prints a **1 Hz**
+`[gbarecomp:link]` line (`GBA_LINK_DEBUG=1` for ~4 Hz).
+
+**Env fallback** (headless / no UI):
+
+| Variable | Meaning |
+|----------|---------|
+| `GBA_NETPLAY=1` | Turn on LAN delay-sync |
+| `GBA_NETPLAY_SLOT` | `0` (host) or `1` (guest) |
+| `GBA_NETPLAY_BIND` | Local bind, e.g. `0.0.0.0:41000` |
+| `GBA_NETPLAY_PEER` | Peer `host:port` (guest); host may leave empty to learn peer |
+| `GBA_NETPLAY_DELAY` | Input delay frames (default `2`, range 2–20) |
+
+```bash
+# Terminal A — host
+GBA_NETPLAY=1 GBA_NETPLAY_SLOT=0 \
+  GBA_NETPLAY_BIND=0.0.0.0:41000 \
+  ./build/EmeraldRecomp
+
+# Terminal B — guest
+GBA_NETPLAY=1 GBA_NETPLAY_SLOT=1 \
+  GBA_NETPLAY_BIND=0.0.0.0:41001 \
+  GBA_NETPLAY_PEER=127.0.0.1:41000 \
+  ./build/EmeraldRecomp
+```
+
+Core unit tests (without the full game):
+
+```bash
+cmake -S gbarecomp -B gbarecomp/build-link -G Ninja -DGBARECOMP_ENABLE_NET=ON
+cmake --build gbarecomp/build-link --target link_tests netplay_smoke_tests
+ctest --test-dir gbarecomp/build-link -R 'link_tests|netplay_smoke' --output-on-failure
+```
 
 ## Legal
 

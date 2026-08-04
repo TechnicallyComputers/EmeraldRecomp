@@ -17,6 +17,14 @@ void game_launcher_attach_codegen(gbarecomp::RunOptions& opts) {
 }
 
 int game_launcher_preboot(std::vector<std::string>& args,
-                        const gbarecomp::RunOptions& opts) {
+                          const gbarecomp::RunOptions& opts) {
     return gbarecomp_launcher_preboot(args, opts);
+}
+
+int game_launcher_should_soft_return(void) {
+#if defined(GBARECOMP_NET) && defined(GBARECOMP_NET_LOBBY)
+    return gbarecomp_launcher_should_soft_return();
+#else
+    return 0;
+#endif
 }

@@ -34,6 +34,11 @@ if(NOT EXISTS "${GBARECOMP_ROOT}/CMakeLists.txt")
         "-DGBARECOMP_ROOT=<path> at configure time.")
 endif()
 
+# Link-cable delay-sync (recomp-net). Opt out with -DGBARECOMP_ENABLE_NET=OFF.
+# Requires gbarecomp/lib/recomp-net submodule (branch main).
+set(GBARECOMP_ENABLE_NET ON CACHE BOOL
+    "Build Emerald with recomp-net + gba_netplay frame barrier")
+
 # Setup host: launcher + runtime without cart shards (first-run generate).
 option(EMERALD_FORCE_SETUP_HOST
     "Build without linking cart generated C even if present" OFF)
@@ -202,12 +207,37 @@ if(GBAGAME_RECOMP_UI)
     if(WIN32)
         target_link_libraries(game_launcher_ui PUBLIC opengl32)
     endif()
+    # Seam needs gba_host_lobby + pending netplay handoff at compile/link time.
+    if(COMMAND gbarecomp_enable_recomp_net AND GBARECOMP_ENABLE_NET)
+        gbarecomp_enable_recomp_net(game_launcher_ui)
+    endif()
     set_property(SOURCE src/main.cpp APPEND PROPERTY COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
 endif()
 
 # Emerald — USA, sha1 f3ae0881…
 add_gba_variant(EmeraldRecomp emerald 19892 "EmeraldRecomp"
     "Pokemon Emerald (USA)" "f3ae088181bf583e55daf962a92bb46f4f1d07b7" 0x1F1C08FB)
+
+# Launcher Generate & rebuild needs the emitter beside the host. gbarecomp is
+# EXCLUDE_FROM_ALL, so without this `cmake --build --target EmeraldRecomp`
+# never builds gba_recompile (exit 2 from generate).
+if(TARGET gba_recompile)
+    add_dependencies(EmeraldRecomp gba_recompile)
+    # sdk_generate find_gba_recompile searches <project>/build/, not the
+    # nested gbarecomp_build/ subdirectory from add_subdirectory().
+    set_target_properties(gba_recompile PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_BINARY_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL "${CMAKE_BINARY_DIR}")
+endif()
+
+# Ensure the exe pulls gba_netplay even if runtime was built without the
+# PUBLIC link (e.g. stale cache). No-op when already linked.
+if(COMMAND gbarecomp_enable_recomp_net)
+    gbarecomp_enable_recomp_net(EmeraldRecomp)
+endif()
 
 # Ship the game-owned, disabled-by-default mod catalog beside the executable.
 # VERBATIM is required: without it, Ninja's shell line escapes spaces but not

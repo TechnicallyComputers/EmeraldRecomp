@@ -17,4 +17,7 @@
 void game_launcher_attach_codegen(gbarecomp::RunOptions& opts);
 
 int game_launcher_preboot(std::vector<std::string>& args,
-                        const gbarecomp::RunOptions& opts);
+                          const gbarecomp::RunOptions& opts);
+
+/* After run_game(): 1 = rematch soft-return — re-enter the launcher. */
+int game_launcher_should_soft_return(void);
